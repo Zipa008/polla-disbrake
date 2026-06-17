@@ -515,7 +515,29 @@ function renderPred() {
 
   // Deshabilitar botón si todos los partidos están cerrados
   const allClosed = MATCHES.every(m => isClosed(m) || isDone(results[m.id]));
-  document.getElementById('btn-guardar').disabled = allClosed;
+  const openCount = MATCHES.filter(m => !isClosed(m) && !isDone(results[m.id])).length;
+  const btn = document.getElementById('btn-guardar');
+  btn.disabled = allClosed;
+  btn.textContent = allClosed
+    ? '🔒 Todos los partidos están cerrados'
+    : `⚽ Guardar mis predicciones (${openCount} partido${openCount !== 1 ? 's' : ''} abierto${openCount !== 1 ? 's' : ''})`;
+
+  // Banner "Ya votaste"
+  const myName = localStorage.getItem('disbrake_name');
+  const yaVote = myName && predictions.some(p => p.name.toLowerCase().trim() === myName.toLowerCase().trim());
+  let banner = document.getElementById('ya-vote-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'ya-vote-banner';
+    banner.style.cssText = 'background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#22c55e;text-align:center;display:none';
+    document.getElementById('matches-pred').before(banner);
+  }
+  if (yaVote && !allClosed) {
+    banner.style.display = 'block';
+    banner.innerHTML = `✅ Ya tienes predicciones guardadas, <strong>${myName}</strong>. Puedes cambiarlas hasta 1 hora antes de cada partido.`;
+  } else {
+    banner.style.display = 'none';
+  }
 }
 
 // Countdown en vivo
@@ -742,7 +764,33 @@ function showToast(msg) {
 // ── INIT ──
 renderPred();
 const sn = localStorage.getItem('disbrake_name');
-if (sn) document.getElementById('user-name').value = sn;
+if (sn) {
+  document.getElementById('user-name').value = sn;
+  // Auto-preload predicciones guardadas al cargar la página
+  setTimeout(() => preloadPredictions(sn), 2000);
+}
+
+// Precargar inputs con predicciones previas del usuario
+function preloadPredictions(name) {
+  if (!name) return;
+  const existing = predictions.find(p => p.name.toLowerCase().trim() === name.toLowerCase().trim());
+  if (!existing || !existing.preds) return;
+  let loaded = 0;
+  MATCHES.forEach(m => {
+    const pred = existing.preds[m.id];
+    if (!pred) return;
+    const hEl = document.getElementById('p' + m.id + 'h');
+    const aEl = document.getElementById('p' + m.id + 'a');
+    if (hEl && !hEl.disabled) { hEl.value = pred.home; loaded++; }
+    if (aEl && !aEl.disabled) { aEl.value = pred.away; }
+  });
+  if (loaded > 0) showToast('📋 Tus pronósticos anteriores cargados');
+}
+
+// Precargar al escribir nombre si ya existe
+document.getElementById('user-name').addEventListener('blur', function() {
+  preloadPredictions(this.value.trim());
+});
 </script>
 </body>
 </html>
